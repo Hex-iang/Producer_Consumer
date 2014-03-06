@@ -1,15 +1,19 @@
 #include "header.h"
 
 int main(void){
-	producer * prod[producer_num];	
+	producer * prod[producer_num];
+	system("clear");	
 	for (int i = 0; i < producer_num; ++i) {
 		prod[i] = new producer(i);
 	}
 	
-	pthread_join((prod[0]->thread),NULL);
-	pthread_join((prod[1]->thread),NULL);
-	pthread_join((prod[2]->thread),NULL);
+	for (int i = 0; i < producer_num; ++i) {
+		pthread_join((prod[i]->thread),NULL);
+	}
 	
+	for (int i = 0; i < producer_num; ++i) {
+		delete prod[i];
+	}
 	return 0;	
 
 }
@@ -23,7 +27,9 @@ producer::~producer(){
 	
 }
 void * producer::start_producer(void * args){
-	((producer *)args)->generate_material(((producer *)args)->product_id);
+	while(true){
+		((producer *)args)->generate_material(((producer *)args)->product_id);	
+	}
 	return NULL;
 }
 void producer::generate_material(int product_id){
@@ -32,8 +38,17 @@ void producer::generate_material(int product_id){
 	srand(static_cast<unsigned int>(time(NULL)));
 	int interval = 10*(rand()%100 + 1);
 	usleep(interval);
-	
-	cout<<"This is thread"<<pid<<", Which produce product"<<material[product_id]<<endl;
+	//printf("This is thread #%d\n",product_id);
+
+	pthread_mutex_lock(&in_buf_mutex);
+	if (in_buf_size <= in_buf_cnt){
+		pthread_exit(NULL);
+	}else{
+		in_buf[in_buf_cnt++] = product_id;
+		printf("Product #%c\n",material[product_id]);
+	}
+	pthread_mutex_unlock(&in_buf_mutex);
 
 };
+
 

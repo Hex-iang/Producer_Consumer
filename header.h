@@ -4,6 +4,7 @@
 #include <ctime>
 #include <vector>
 #include <unistd.h>
+
 using namespace std;
 
 //Total variety of materials
@@ -16,7 +17,8 @@ const int prod_cnt = 3;
 const int producer_num = 3;
 
 const int in_buf_size = 10;
-vector<int> in_buf;
+static int in_buf[in_buf_size];
+static int in_buf_cnt = 0;
 vector<int> out_buf;
 
 pthread_mutex_t in_buf_mutex;
