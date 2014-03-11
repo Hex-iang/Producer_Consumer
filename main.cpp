@@ -66,14 +66,20 @@ void producer::generate_material(int product_id){
         
 		pthread_mutex_lock(&in_buf_mutex);
 		if (in_buf.size() >= in_buf_size){
-			pthread_cond_broadcast(&consumer_cond);
-			sprintf(sys_info,"Generator Thread %d Goes to sleep",producer_id);
+			pthread_cond_signal(&consumer_cond);
+			sprintf(sys_info,"Generator Thread %d Sleeps: Buffer Full",producer_id);
 			print_info_to_screen(sys_info);
+            
 			pthread_cond_wait(&producer_cond,&in_buf_mutex);
+            
+			sprintf(sys_info,"Generator Thread %d Wake up",producer_id);
+			print_info_to_screen(sys_info);
+            
 		}else if(material_check()){
 			material_cnt[product_id]++;
 			in_buf.push_back(product_id);
-			pthread_cond_broadcast(&consumer_cond);
+			pthread_cond_signal(&consumer_cond);
+            
 			sprintf(sys_info,"Generator Thread %d Producing Material %c",producer_id,material[product_id]);
 			print_info_to_screen(sys_info);
 		}
@@ -154,9 +160,12 @@ void consumer::produce_product(){
 	while(true){
 		int interval = max_interval*1000*(rand()%1000 + 1);
 		pthread_mutex_lock(&tool_mutex);
-		if(tool_cnt <= 1){
-			pthread_mutex_unlock(&tool_mutex);
-			continue;
+		while(tool_cnt <= 1){
+			pthread_cond_broadcast(&producer_cond);
+			sprintf(sys_info,"Operator Thread %d Sleeps: No Tools",consumer_id);
+			pthread_cond_wait(&tool_cond,&tool_mutex);
+			sprintf(sys_info,"Operator Thread %d Wake up",consumer_id);
+			print_info_to_screen(sys_info);
 		}
 		tool_cnt -= 2;
 		pthread_mutex_unlock(&tool_mutex);
@@ -164,35 +173,53 @@ void consumer::produce_product(){
 		if (in_buf.size() > 2){
 			int material_1, material_2;
 			pthread_mutex_lock(&out_buf_mutex);
-			bool tmp_flag = get_in_buf_material(&material_1, &material_2);
-			pthread_mutex_unlock(&out_buf_mutex);
-			if(false == tmp_flag){
+            int tmp_flag = get_in_buf_material(&material_1, &material_2);
+            pthread_mutex_unlock(&out_buf_mutex);
+			while(false == tmp_flag){
 				pthread_cond_broadcast(&producer_cond);
-				sprintf(sys_info,"Operator Thread %d Goes to Sleep",consumer_id);
+				sprintf(sys_info,"Operator Thread %d Sleeps: No Suitable Material",consumer_id);
 				print_info_to_screen(sys_info);
+                
 				pthread_cond_wait(&consumer_cond,&in_buf_mutex);
+
+				sprintf(sys_info,"Operator Thread %d Wake up",consumer_id);
+				print_info_to_screen(sys_info);
+				tmp_flag = get_in_buf_material(&material_1, &material_2);
 			}
             
 			int item = product_check(material_1,material_2);
             
-			product_cnt[item]++;
-			pthread_cond_broadcast(&producer_cond);
-			pthread_mutex_lock(&out_buf_mutex);
-			out_buf.push_back(item);
-			pthread_mutex_unlock(&out_buf_mutex);
+        	if(item != -1 && (out_buf.empty() || out_buf.back() != item)){
+				product_cnt[item]++;
+				pthread_cond_signal(&producer_cond);
+				pthread_mutex_lock(&out_buf_mutex);
+				out_buf.push_back(item);
+				pthread_mutex_unlock(&out_buf_mutex);
+				sprintf(sys_info,"Operator Thread %d: %c + %c = %c", consumer_id, material[material_1], material[material_2], product[item]);
+				print_info_to_screen(sys_info);
+                
+        	}else{
+                in_buf.push_back(material_1);
+        		in_buf.push_back(material_2);
+				sprintf(sys_info,"Operator Thread %d: Push Back %c, %c",consumer_id, material[material_1], material[material_2]);
+				print_info_to_screen(sys_info);
+                
+        	}
             
-			sprintf(sys_info,"Operator Thread %d Producing Product %c",consumer_id,product[item]);
-			print_info_to_screen(sys_info);
 		}else{
 			pthread_cond_broadcast(&producer_cond);
-			sprintf(sys_info,"Operator Thread %d Goes to Sleep",consumer_id);
+			sprintf(sys_info,"Operator Thread %d Sleeps: No Enough Material",consumer_id);
 			print_info_to_screen(sys_info);
 			pthread_cond_wait(&consumer_cond,&in_buf_mutex);
+			sprintf(sys_info,"Operator Thread %d Wake up",consumer_id);
+			print_info_to_screen(sys_info);
+
 		}
 		pthread_mutex_unlock(&in_buf_mutex);
 		
 		pthread_mutex_lock(&tool_mutex);
 		tool_cnt += 2;
+		pthread_cond_signal(&tool_cond);
 		pthread_mutex_unlock(&tool_mutex);
 		usleep(interval);
 	}
@@ -239,6 +266,7 @@ void print_info_to_screen(const char * extra_info){
 		cout<<material[in_buf[i]]<<" ";
 	}
 	cout<<endl;
+    cout<<"|\tMaterial Buffer Size:"<<in_buf.size()<<endl;
 	cout<<"|\tLast 10 Products In Buffer: ";
 	int out_buf_size = 10;
 	if(out_buf_size > out_buf.size()) out_buf_size = out_buf.size();

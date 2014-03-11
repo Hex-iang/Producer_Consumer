@@ -18,10 +18,12 @@ const int prod_cnt = 3;
 const int producer_num = 3;
 int consumer_num = 3;
 int tool_num = 3;
-const int max_interval = 4;
 int tool_cnt = 0;
 int product_cnt[3] = { 0, 0, 0 };
 int material_cnt[3] = { 0, 0, 0};
+
+const int max_interval = 4;
+
 //keyboard key value
 const int ESCAPE=27;
 const int RETURN=10;
@@ -40,6 +42,7 @@ pthread_mutex_t in_buf_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t out_buf_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t producer_cond = PTHREAD_COND_INITIALIZER;
 pthread_cond_t consumer_cond = PTHREAD_COND_INITIALIZER;
+pthread_cond_t tool_cond = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t tool_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 class producer{
